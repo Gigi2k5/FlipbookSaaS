@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App data
+uploads/*
+!uploads/.gitkeep
+flipbooks/*
+!flipbooks/.gitkeep
+
+# Logs
+*.log

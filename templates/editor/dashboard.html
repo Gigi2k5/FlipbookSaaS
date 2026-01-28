@@ -1,0 +1,57 @@
+{% extends "editor/base.html" %}
+
+{% set active_nav = 'dashboard' %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('editor.editor_new') }}" class="btn btn-primary">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Nouveau flipbook
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    {% if flipbooks %}
+    <div class="flipbooks-grid">
+        {% for fb in flipbooks %}
+        <div class="flipbook-card">
+            <div class="flipbook-preview">
+                <div class="preview-placeholder">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="flipbook-info">
+                <h3 class="flipbook-title">{{ fb.title or 'Sans titre' }}</h3>
+                <p class="flipbook-meta">{{ fb.pages_count }} pages</p>
+            </div>
+            <div class="flipbook-actions">
+                <a href="{{ url_for('editor.editor_edit', flipbook_id=fb.id) }}" class="btn btn-sm">Éditer</a>
+                <a href="{{ url_for('viewer.view_flipbook', flipbook_id=fb.id) }}" class="btn btn-sm btn-ghost" target="_blank">Voir</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <h3>Aucun flipbook</h3>
+        <p>Créez votre premier flipbook pour commencer</p>
+        <a href="{{ url_for('editor.editor_new') }}" class="btn btn-primary">Créer un flipbook</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "editor/base.html" %}
+
+{% set active_nav = 'new' %}
+
+{% block title %}Nouveau flipbook{% endblock %}
+{% block page_title %}Nouveau flipbook{% endblock %}
+
+{% block content %}
+<div class="new-flipbook">
+    <div class="upload-zone" id="uploadZone">
+        <div class="upload-content" id="uploadContent">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <h3>Glissez votre PDF ici</h3>
+            <p>ou cliquez pour parcourir</p>
+            <input type="file" id="fileInput" accept=".pdf" hidden>
+        </div>
+        <div class="upload-loading" id="uploadLoading" hidden>
+            <div class="spinner"></div>
+            <p id="loadingText">Upload en cours...</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+    <p class="upload-hint">PDF uniquement • Max 30 MB</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const MAX_SIZE = 30 * 1024 * 1024;
+    const $ = id => document.getElementById(id);
+    
+    const zone = $('uploadZone');
+    const content = $('uploadContent');
+    const loading = $('uploadLoading');
+    const input = $('fileInput');
+    const text = $('loadingText');
+    const progress = $('progressFill');
+    
+    let uploading = false;
+    
+    zone.onclick = () => !uploading && input.click();
+    zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
+    zone.ondragleave = () => zone.classList.remove('dragover');
+    zone.ondrop = e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handle(e.dataTransfer.files[0]);
+    };
+    input.onchange = e => e.target.files.length && handle(e.target.files[0]);
+    
+    function handle(file) {
+        if (file.type !== 'application/pdf') return alert('PDF uniquement');
+        if (file.size > MAX_SIZE) return alert('Fichier trop volumineux');
+        upload(file);
+    }
+    
+    function upload(file) {
+        if (uploading) return;
+        uploading = true;
+        
+        content.hidden = true;
+        loading.hidden = false;
+        progress.style.width = '0%';
+        
+        const fd = new FormData();
+        fd.append('file', file);
+        
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = e => {
+            if (e.lengthComputable) progress.style.width = (e.loaded/e.total*50) + '%';
+        };
+        xhr.onload = () => {
+            if (xhr.status === 200) {
+                const res = JSON.parse(xhr.responseText);
+                if (res.success) {
+                    text.textContent = 'Conversion...';
+                    progress.style.width = '75%';
+                    setTimeout(() => {
+                        progress.style.width = '100%';
+                        window.location.href = '/editor/' + res.flipbook_id;
+                    }, 500);
+                } else {
+                    reset(res.error);
+                }
+            } else {
+                reset('Erreur serveur');
+            }
+        };
+        xhr.onerror = () => reset('Erreur réseau');
+        xhr.open('POST', '/upload');
+        xhr.send(fd);
+    }
+    
+    function reset(msg) {
+        uploading = false;
+        content.hidden = false;
+        loading.hidden = true;
+        input.value = '';
+        if (msg) alert(msg);
+    }
+})();
+</script>
+{% endblock %}

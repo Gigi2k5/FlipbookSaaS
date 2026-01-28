@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FlipBook - Convertisseur PDF{% endblock %}</title>
+    <meta name="description" content="Convertissez vos PDFs en flipbooks interactifs">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <a href="/" class="logo">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6zm7 1.5L18.5 9H13V3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>
+                <span>FlipBook</span>
+            </a>
+            <nav class="nav">
+                <a href="/#features">Fonctionnalités</a>
+                <a href="/#how-it-works">Comment ça marche</a>
+                <a href="{{ url_for('editor.editor_home') }}">Éditeur</a>
+            </nav>
+        </div>
+    </header>
+    
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6zm7 1.5L18.5 9H13V3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>
+                    <span>FlipBook</span>
+                </div>
+                <p class="footer-text">Convertisseur PDF gratuit et open-source</p>
+            </div>
+            <div class="footer-stats">
+                <span>{{ stats.total_flipbooks | default(0) }} flipbooks</span>
+                <span>{{ stats.total_pages | default(0) }} pages</span>
+            </div>
+        </div>
+    </footer>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

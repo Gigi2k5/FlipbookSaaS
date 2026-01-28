@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ error_title | default('Erreur') }} - FlipBook</title>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --text: #111;
+            --text-muted: #666;
+            --accent: #3b82f6;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        
+        .error-card {
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .error-code {
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+        
+        .error-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .error-message {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--accent);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: opacity 0.15s;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-card">
+        <div class="error-code">{{ error_code | default('404') }}</div>
+        <h1 class="error-title">{{ error_title | default('Page introuvable') }}</h1>
+        <p class="error-message">{{ error_message | default('Cette page n\'existe pas.') }}</p>
+        <a href="/" class="btn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Retour à l'accueil
+        </a>
+    </div>
+</body>
+</html>

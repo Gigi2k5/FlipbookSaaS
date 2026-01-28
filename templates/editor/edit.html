@@ -1,0 +1,849 @@
+{% extends "editor/base.html" %}
+
+{% set active_nav = 'edit' %}
+
+{% block title %}{{ flipbook.title or 'Sans titre' }}{% endblock %}
+{% block page_title %}<span id="headerTitle">{{ flipbook.title or 'Sans titre' }}</span>{% endblock %}
+
+{% block header_actions %}
+<div class="view-toggle">
+    <button class="btn btn-icon active" id="pageViewBtn" title="Vue page">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+        </svg>
+    </button>
+    <button class="btn btn-icon" id="gridViewBtn" title="Vue grille">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+    </button>
+</div>
+<div class="header-divider"></div>
+<div class="view-controls">
+    <button class="btn btn-icon" id="zoomOutBtn" title="Zoom -">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M8 11h6"/>
+        </svg>
+    </button>
+    <button class="btn btn-icon" id="zoomInBtn" title="Zoom +">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+        </svg>
+    </button>
+    <button class="btn btn-icon" id="fullscreenBtn" title="Plein écran">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+    </button>
+</div>
+<div class="header-divider"></div>
+<span class="save-status" id="saveStatus"></span>
+<a href="{{ url_for('viewer.view_flipbook', flipbook_id=flipbook.id) }}" class="btn btn-primary" target="_blank">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+    </svg>
+    Aperçu
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="editor-workspace">
+    <!-- Vue page -->
+    <div class="preview-area" id="previewArea">
+        <div class="preview-container" id="previewContainer">
+            <div class="page-display" id="pageDisplay">
+                <img id="currentPageImg" src="/view/{{ flipbook.id }}/pages/page_1.jpg" alt="Page 1">
+                <div class="hotspots-overlay" id="hotspotsOverlay"></div>
+            </div>
+        </div>
+        
+        <div class="preview-navigation">
+            <button class="nav-btn" id="prevPageBtn" title="Page précédente">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+            </button>
+            <div class="page-indicator">
+                <span id="currentPageNum">1</span> / {{ flipbook.pages_count }}
+            </div>
+            <button class="nav-btn" id="nextPageBtn" title="Page suivante">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18l6-6-6-6"/>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="page-slider">
+            <input type="range" id="pageSlider" min="1" max="{{ flipbook.pages_count }}" value="1">
+        </div>
+    </div>
+    
+    <!-- Vue grille -->
+    <div class="grid-area" id="gridArea" style="display:none;">
+        <div class="grid-container" id="gridContainer"></div>
+    </div>
+    
+    <!-- Panel latéral -->
+    <aside class="options-panel" id="optionsPanel" style="display:none;">
+        <div class="panel-header">
+            <h3 id="panelTitle">Options</h3>
+            <button class="btn btn-icon btn-sm" id="closePanelBtn" title="Fermer">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="panel-content" id="panelContent"></div>
+    </aside>
+</div>
+
+<!-- Overlay de dessin -->
+<div class="drawing-mode" id="drawingMode" style="display:none;">
+    <div class="drawing-toolbar">
+        <span>Dessinez une zone sur la page</span>
+        <button class="btn btn-sm" id="cancelDrawingBtn">Annuler</button>
+    </div>
+    <div class="drawing-area" id="drawingArea">
+        <div class="drawing-rect" id="drawingRect" style="display:none;"></div>
+    </div>
+</div>
+
+<!-- Modal hotspot -->
+<div class="modal" id="hotspotModal" style="display:none;">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Nouveau lien</h3>
+            <button class="btn btn-icon btn-sm modal-close-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Type de lien</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="hotspotType" value="url" checked>
+                        <span>URL externe</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="hotspotType" value="page">
+                        <span>Page du flipbook</span>
+                    </label>
+                </div>
+            </div>
+            <div class="form-group" id="urlGroup">
+                <label for="hotspotUrl">URL de destination</label>
+                <input type="url" id="hotspotUrl" class="form-input" placeholder="https://example.com">
+            </div>
+            <div class="form-group" id="pageGroup" style="display:none;">
+                <label for="hotspotPage">Page de destination</label>
+                <select id="hotspotPage" class="form-input">
+                    {% for i in range(1, flipbook.pages_count + 1) %}
+                    <option value="{{ i }}">Page {{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="hotspotLabel">Label (optionnel)</label>
+                <input type="text" id="hotspotLabel" class="form-input" placeholder="Description du lien">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn modal-cancel-btn">Annuler</button>
+            <button class="btn btn-primary" id="saveHotspotBtn">Enregistrer</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+    
+    // =====================
+    // CONFIGURATION
+    // =====================
+    const CONFIG = {
+        flipbookId: "{{ flipbook.id }}",
+        totalPages: {{ flipbook.pages_count }},
+        initialData: {
+            title: "{{ flipbook.title or '' }}",
+            mode: "{{ flipbook.mode or 'default' }}",
+            backgroundColor: "{{ flipbook.background_color or '#0f0f0f' }}"
+        }
+    };
+    
+    // =====================
+    // STATE
+    // =====================
+    const state = {
+        currentPage: 1,
+        zoom: 1,
+        currentView: 'page',
+        gridLoaded: false,
+        hotspots: [],
+        editingHotspot: null,
+        pendingCoords: null,
+        isDrawing: false,
+        drawStart: null,
+        flipbookData: { ...CONFIG.initialData },
+        saveTimeout: null
+    };
+    
+    // =====================
+    // DOM ELEMENTS
+    // =====================
+    const DOM = {
+        // Preview
+        previewArea: document.getElementById('previewArea'),
+        previewContainer: document.getElementById('previewContainer'),
+        pageDisplay: document.getElementById('pageDisplay'),
+        currentPageImg: document.getElementById('currentPageImg'),
+        hotspotsOverlay: document.getElementById('hotspotsOverlay'),
+        
+        // Navigation
+        prevPageBtn: document.getElementById('prevPageBtn'),
+        nextPageBtn: document.getElementById('nextPageBtn'),
+        pageSlider: document.getElementById('pageSlider'),
+        currentPageNum: document.getElementById('currentPageNum'),
+        
+        // Grid
+        gridArea: document.getElementById('gridArea'),
+        gridContainer: document.getElementById('gridContainer'),
+        
+        // View toggle
+        pageViewBtn: document.getElementById('pageViewBtn'),
+        gridViewBtn: document.getElementById('gridViewBtn'),
+        
+        // Zoom
+        zoomInBtn: document.getElementById('zoomInBtn'),
+        zoomOutBtn: document.getElementById('zoomOutBtn'),
+        fullscreenBtn: document.getElementById('fullscreenBtn'),
+        
+        // Panel
+        optionsPanel: document.getElementById('optionsPanel'),
+        panelTitle: document.getElementById('panelTitle'),
+        panelContent: document.getElementById('panelContent'),
+        closePanelBtn: document.getElementById('closePanelBtn'),
+        
+        // Drawing
+        drawingMode: document.getElementById('drawingMode'),
+        drawingArea: document.getElementById('drawingArea'),
+        drawingRect: document.getElementById('drawingRect'),
+        cancelDrawingBtn: document.getElementById('cancelDrawingBtn'),
+        
+        // Modal
+        hotspotModal: document.getElementById('hotspotModal'),
+        modalTitle: document.getElementById('modalTitle'),
+        urlGroup: document.getElementById('urlGroup'),
+        pageGroup: document.getElementById('pageGroup'),
+        hotspotUrl: document.getElementById('hotspotUrl'),
+        hotspotPage: document.getElementById('hotspotPage'),
+        hotspotLabel: document.getElementById('hotspotLabel'),
+        saveHotspotBtn: document.getElementById('saveHotspotBtn'),
+        
+        // Header
+        headerTitle: document.getElementById('headerTitle'),
+        saveStatus: document.getElementById('saveStatus')
+    };
+    
+    // =====================
+    // UTILITIES
+    // =====================
+    function show(el) { if (el) el.style.display = ''; }
+    function hide(el) { if (el) el.style.display = 'none'; }
+    function isVisible(el) { return el && el.style.display !== 'none'; }
+    
+    function showStatus(text, type) {
+        DOM.saveStatus.textContent = text;
+        DOM.saveStatus.className = 'save-status ' + type;
+        setTimeout(() => { DOM.saveStatus.textContent = ''; }, 2000);
+    }
+    
+    // =====================
+    // API
+    // =====================
+    const API = {
+        getHotspots: () => fetch(`/api/flipbook/${CONFIG.flipbookId}/hotspots`).then(r => r.json()),
+        
+        createHotspot: (data) => fetch(`/api/flipbook/${CONFIG.flipbookId}/hotspots`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(r => r.json()),
+        
+        updateHotspot: (id, data) => fetch(`/api/flipbook/${CONFIG.flipbookId}/hotspots/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(r => r.json()),
+        
+        deleteHotspot: (id) => fetch(`/api/flipbook/${CONFIG.flipbookId}/hotspots/${id}`, {
+            method: 'DELETE'
+        }).then(r => r.json()),
+        
+        updateFlipbook: (data) => fetch(`/api/flipbook/${CONFIG.flipbookId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(r => r.json())
+    };
+    
+    // =====================
+    // HOTSPOTS
+    // =====================
+    function loadHotspots() {
+        API.getHotspots()
+            .then(res => {
+                state.hotspots = res.success ? (res.hotspots || []) : [];
+                renderHotspots();
+            })
+            .catch(() => { state.hotspots = []; });
+    }
+    
+    function renderHotspots() {
+        const pageHotspots = state.hotspots.filter(h => h.page === state.currentPage);
+        DOM.hotspotsOverlay.innerHTML = pageHotspots.map(h => `
+            <div class="hotspot-marker" data-id="${h.id}"
+                 style="left:${h.x}%;top:${h.y}%;width:${h.width}%;height:${h.height}%"
+                 title="${h.label || (h.type === 'url' ? h.target : 'Page ' + h.target)}">
+                <button class="hotspot-delete" data-id="${h.id}">×</button>
+            </div>
+        `).join('');
+        
+        // Bind events
+        DOM.hotspotsOverlay.querySelectorAll('.hotspot-delete').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deleteHotspot(this.dataset.id);
+            });
+        });
+        
+        DOM.hotspotsOverlay.querySelectorAll('.hotspot-marker').forEach(marker => {
+            marker.addEventListener('click', function(e) {
+                if (e.target.classList.contains('hotspot-delete')) return;
+                openModalForEdit(this.dataset.id);
+            });
+        });
+    }
+    
+    function deleteHotspot(id) {
+        if (!confirm('Supprimer ce lien ?')) return;
+        
+        API.deleteHotspot(id).then(res => {
+            if (res.success) {
+                state.hotspots = state.hotspots.filter(h => h.id !== id);
+                renderHotspots();
+                showStatus('Lien supprimé', 'saved');
+                refreshLinkPanel();
+            }
+        });
+    }
+    
+    // =====================
+    // MODAL
+    // =====================
+    function openModal() {
+        show(DOM.hotspotModal);
+    }
+    
+    function closeModal() {
+        hide(DOM.hotspotModal);
+        state.editingHotspot = null;
+        state.pendingCoords = null;
+        // Reset form
+        DOM.hotspotUrl.value = '';
+        DOM.hotspotLabel.value = '';
+        DOM.hotspotPage.value = '1';
+        document.querySelector('input[name="hotspotType"][value="url"]').checked = true;
+        updateTypeFields();
+    }
+    
+    function openModalForNew(coords) {
+        state.editingHotspot = null;
+        state.pendingCoords = coords;
+        DOM.modalTitle.textContent = 'Nouveau lien';
+        DOM.hotspotUrl.value = '';
+        DOM.hotspotLabel.value = '';
+        DOM.hotspotPage.value = '1';
+        document.querySelector('input[name="hotspotType"][value="url"]').checked = true;
+        updateTypeFields();
+        openModal();
+    }
+    
+    function openModalForEdit(id) {
+        const hotspot = state.hotspots.find(h => h.id === id);
+        if (!hotspot) return;
+        
+        state.editingHotspot = hotspot;
+        state.pendingCoords = null;
+        DOM.modalTitle.textContent = 'Modifier le lien';
+        
+        document.querySelector(`input[name="hotspotType"][value="${hotspot.type}"]`).checked = true;
+        updateTypeFields();
+        
+        if (hotspot.type === 'url') {
+            DOM.hotspotUrl.value = hotspot.target || '';
+        } else {
+            DOM.hotspotPage.value = hotspot.target || '1';
+        }
+        DOM.hotspotLabel.value = hotspot.label || '';
+        
+        openModal();
+    }
+    
+    function updateTypeFields() {
+        const type = document.querySelector('input[name="hotspotType"]:checked').value;
+        if (type === 'url') {
+            show(DOM.urlGroup);
+            hide(DOM.pageGroup);
+        } else {
+            hide(DOM.urlGroup);
+            show(DOM.pageGroup);
+        }
+    }
+    
+    function saveHotspot() {
+        const type = document.querySelector('input[name="hotspotType"]:checked').value;
+        const target = type === 'url' ? DOM.hotspotUrl.value.trim() : DOM.hotspotPage.value;
+        const label = DOM.hotspotLabel.value.trim();
+        
+        if (type === 'url' && !target) {
+            alert('Veuillez entrer une URL');
+            return;
+        }
+        
+        if (state.editingHotspot) {
+            // Update existing
+            API.updateHotspot(state.editingHotspot.id, { type, target, label })
+                .then(res => {
+                    if (res.success) {
+                        const h = state.hotspots.find(h => h.id === state.editingHotspot.id);
+                        if (h) { h.type = type; h.target = target; h.label = label; }
+                        renderHotspots();
+                        showStatus('Lien modifié', 'saved');
+                        closeModal();
+                        refreshLinkPanel();
+                    }
+                });
+        } else if (state.pendingCoords) {
+            // Create new
+            const data = {
+                page: state.currentPage,
+                x: state.pendingCoords.x,
+                y: state.pendingCoords.y,
+                width: state.pendingCoords.width,
+                height: state.pendingCoords.height,
+                type,
+                target,
+                label
+            };
+            
+            API.createHotspot(data).then(res => {
+                if (res.success) {
+                    state.hotspots.push(res.hotspot);
+                    renderHotspots();
+                    showStatus('Lien créé', 'saved');
+                    closeModal();
+                    refreshLinkPanel();
+                }
+            });
+        }
+    }
+    
+    // Modal event listeners
+    DOM.hotspotModal.querySelector('.modal-backdrop').addEventListener('click', closeModal);
+    DOM.hotspotModal.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+    DOM.hotspotModal.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+    DOM.saveHotspotBtn.addEventListener('click', saveHotspot);
+    
+    document.querySelectorAll('input[name="hotspotType"]').forEach(radio => {
+        radio.addEventListener('change', updateTypeFields);
+    });
+    
+    // =====================
+    // DRAWING MODE
+    // =====================
+    function startDrawingMode() {
+        // Close panel
+        closePanel();
+        
+        // Position drawing area over the page
+        const rect = DOM.pageDisplay.getBoundingClientRect();
+        DOM.drawingArea.style.left = rect.left + 'px';
+        DOM.drawingArea.style.top = rect.top + 'px';
+        DOM.drawingArea.style.width = rect.width + 'px';
+        DOM.drawingArea.style.height = rect.height + 'px';
+        
+        // Show drawing mode
+        show(DOM.drawingMode);
+        hide(DOM.drawingRect);
+        state.isDrawing = false;
+        state.drawStart = null;
+    }
+    
+    function stopDrawingMode() {
+        hide(DOM.drawingMode);
+        hide(DOM.drawingRect);
+        state.isDrawing = false;
+        state.drawStart = null;
+    }
+    
+    DOM.cancelDrawingBtn.addEventListener('click', stopDrawingMode);
+    
+    DOM.drawingArea.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        state.isDrawing = true;
+        const rect = DOM.drawingArea.getBoundingClientRect();
+        state.drawStart = {
+            x: ((e.clientX - rect.left) / rect.width) * 100,
+            y: ((e.clientY - rect.top) / rect.height) * 100
+        };
+        show(DOM.drawingRect);
+        DOM.drawingRect.style.left = state.drawStart.x + '%';
+        DOM.drawingRect.style.top = state.drawStart.y + '%';
+        DOM.drawingRect.style.width = '0%';
+        DOM.drawingRect.style.height = '0%';
+    });
+    
+    DOM.drawingArea.addEventListener('mousemove', function(e) {
+        if (!state.isDrawing || !state.drawStart) return;
+        const rect = DOM.drawingArea.getBoundingClientRect();
+        const currentX = ((e.clientX - rect.left) / rect.width) * 100;
+        const currentY = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        const x = Math.min(state.drawStart.x, currentX);
+        const y = Math.min(state.drawStart.y, currentY);
+        const w = Math.abs(currentX - state.drawStart.x);
+        const h = Math.abs(currentY - state.drawStart.y);
+        
+        DOM.drawingRect.style.left = x + '%';
+        DOM.drawingRect.style.top = y + '%';
+        DOM.drawingRect.style.width = w + '%';
+        DOM.drawingRect.style.height = h + '%';
+    });
+    
+    DOM.drawingArea.addEventListener('mouseup', function(e) {
+        if (!state.isDrawing || !state.drawStart) return;
+        state.isDrawing = false;
+        
+        const rect = DOM.drawingArea.getBoundingClientRect();
+        const endX = ((e.clientX - rect.left) / rect.width) * 100;
+        const endY = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        const x = Math.min(state.drawStart.x, endX);
+        const y = Math.min(state.drawStart.y, endY);
+        const w = Math.abs(endX - state.drawStart.x);
+        const h = Math.abs(endY - state.drawStart.y);
+        
+        stopDrawingMode();
+        
+        // Minimum 3% size
+        if (w < 3 || h < 3) return;
+        
+        openModalForNew({ x, y, width: w, height: h });
+    });
+    
+    DOM.drawingArea.addEventListener('mouseleave', function() {
+        if (state.isDrawing) {
+            state.isDrawing = false;
+            hide(DOM.drawingRect);
+        }
+    });
+    
+    // =====================
+    // PANELS
+    // =====================
+    function openPanel(type) {
+        const panelConfig = PANELS[type];
+        if (!panelConfig) return;
+        
+        show(DOM.optionsPanel);
+        DOM.panelTitle.textContent = panelConfig.title;
+        DOM.panelContent.innerHTML = panelConfig.render();
+        panelConfig.init();
+        
+        // Update nav active state
+        document.querySelectorAll('[data-panel]').forEach(l => l.classList.remove('active'));
+        document.querySelector(`[data-panel="${type}"]`)?.classList.add('active');
+    }
+    
+    function closePanel() {
+        hide(DOM.optionsPanel);
+        document.querySelectorAll('[data-panel]').forEach(l => l.classList.remove('active'));
+    }
+    
+    function refreshLinkPanel() {
+        if (isVisible(DOM.optionsPanel) && DOM.panelTitle.textContent === 'Liens') {
+            openPanel('link');
+        }
+    }
+    
+    const PANELS = {
+        title: {
+            title: 'Titre',
+            render: () => `<div class="form-group"><label for="titleInput">Titre du flipbook</label>
+                <input type="text" id="titleInput" class="form-input" value="${state.flipbookData.title}" placeholder="Sans titre"></div>`,
+            init: () => {
+                document.getElementById('titleInput').addEventListener('input', function() {
+                    DOM.headerTitle.textContent = this.value.trim() || 'Sans titre';
+                    debounceSave({ title: this.value });
+                });
+            }
+        },
+        mode: {
+            title: 'Mode d\'affichage',
+            render: () => {
+                const modes = {default:'Standard',magazine:'Magazine',coverflow:'Coverflow',cards:'Cartes',cube:'Cube',flip:'Flip',fade:'Fondu'};
+                return `<div class="form-group"><label>Sélectionnez un mode</label><div class="mode-grid">
+                ${Object.entries(modes).map(([key, name]) => `
+                    <button class="mode-card ${state.flipbookData.mode === key ? 'active' : ''}" data-mode="${key}">
+                        <span>${name}</span>
+                    </button>`).join('')}
+                </div></div><p class="form-hint">Le mode sera appliqué lors de la visualisation.</p>`;
+            },
+            init: () => {
+                document.querySelectorAll('.mode-card').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.mode-card').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        state.flipbookData.mode = this.dataset.mode;
+                        saveFlipbook({ mode: this.dataset.mode });
+                    });
+                });
+            }
+        },
+        background: {
+            title: 'Arrière-plan',
+            render: () => `<div class="form-group"><label>Couleur de fond</label>
+                <div class="color-input-wrapper">
+                    <input type="color" id="bgColorInput" value="${state.flipbookData.backgroundColor || '#0f0f0f'}">
+                    <input type="text" id="bgColorText" class="form-input" value="${state.flipbookData.backgroundColor || '#0f0f0f'}">
+                </div></div>
+                <div class="form-group"><label>Préréglages</label><div class="color-presets">
+                    ${['#0f0f0f','#1a1a2e','#16213e','#0f3460','#1b262c','#2d4059','#222831','#393e46'].map(c => 
+                        `<button class="color-preset" data-color="${c}" style="background:${c}"></button>`).join('')}
+                </div></div>`,
+            init: () => {
+                const colorInput = document.getElementById('bgColorInput');
+                const textInput = document.getElementById('bgColorText');
+                const update = c => { 
+                    colorInput.value = c; 
+                    textInput.value = c; 
+                    DOM.previewContainer.style.background = c; 
+                    debounceSave({ background_color: c }); 
+                };
+                colorInput.addEventListener('input', () => update(colorInput.value));
+                textInput.addEventListener('change', () => { 
+                    if (/^#[0-9A-Fa-f]{6}$/.test(textInput.value)) update(textInput.value); 
+                });
+                document.querySelectorAll('.color-preset').forEach(btn => { 
+                    btn.addEventListener('click', () => update(btn.dataset.color)); 
+                });
+            }
+        },
+        logo: { title: 'Logo', render: () => `<p class="form-hint">Fonctionnalité à venir.</p>`, init: () => {} },
+        toc: { title: 'Sommaire', render: () => `<p class="form-hint">Fonctionnalité à venir.</p>`, init: () => {} },
+        link: {
+            title: 'Liens',
+            render: () => {
+                const pageHotspots = state.hotspots.filter(h => h.page === state.currentPage);
+                return `
+                    <div class="form-group">
+                        <label>Liens sur la page ${state.currentPage}</label>
+                        <div id="hotspotsList">
+                            ${pageHotspots.length === 0 ? '<p class="form-hint">Aucun lien sur cette page.</p>' : 
+                                pageHotspots.map(h => `
+                                    <div class="hotspot-item">
+                                        <span class="hotspot-type">${h.type === 'url' ? '🔗' : '📄'}</span>
+                                        <span class="hotspot-target">${h.type === 'url' ? h.target : 'Page ' + h.target}</span>
+                                        <button class="hotspot-item-delete" data-id="${h.id}">×</button>
+                                    </div>
+                                `).join('')
+                            }
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="addLinkBtn">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Ajouter un lien
+                    </button>
+                    <p class="form-hint" style="margin-top:1rem">Cliquez sur un lien existant pour le modifier.</p>
+                `;
+            },
+            init: () => {
+                document.getElementById('addLinkBtn').addEventListener('click', startDrawingMode);
+                document.querySelectorAll('.hotspot-item-delete').forEach(btn => {
+                    btn.addEventListener('click', function() { deleteHotspot(this.dataset.id); });
+                });
+            }
+        },
+        image: { title: 'Images', render: () => `<p class="form-hint">Fonctionnalité à venir.</p>`, init: () => {} },
+        video: { title: 'Vidéo', render: () => `<p class="form-hint">Fonctionnalité à venir.</p>`, init: () => {} },
+        audio: { title: 'Audio', render: () => `<p class="form-hint">Fonctionnalité à venir.</p>`, init: () => {} }
+    };
+    
+    // Panel navigation
+    document.querySelectorAll('[data-panel]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            openPanel(this.dataset.panel);
+        });
+    });
+    
+    DOM.closePanelBtn.addEventListener('click', closePanel);
+    
+    // =====================
+    // VIEWS
+    // =====================
+    function switchView(view) {
+        state.currentView = view;
+        if (view === 'page') {
+            show(DOM.previewArea);
+            hide(DOM.gridArea);
+            DOM.pageViewBtn.classList.add('active');
+            DOM.gridViewBtn.classList.remove('active');
+        } else {
+            hide(DOM.previewArea);
+            show(DOM.gridArea);
+            DOM.pageViewBtn.classList.remove('active');
+            DOM.gridViewBtn.classList.add('active');
+            if (!state.gridLoaded) loadGrid();
+        }
+    }
+    
+    function loadGrid() {
+        let html = '';
+        for (let i = 1; i <= CONFIG.totalPages; i++) {
+            html += `<div class="grid-page ${i === state.currentPage ? 'active' : ''}" data-page="${i}">
+                <div class="grid-page-img"><img src="/view/${CONFIG.flipbookId}/pages/page_${i}.jpg" loading="lazy"></div>
+                <div class="grid-page-num">${i}</div>
+            </div>`;
+        }
+        DOM.gridContainer.innerHTML = html;
+        state.gridLoaded = true;
+        
+        DOM.gridContainer.querySelectorAll('.grid-page').forEach(el => {
+            el.addEventListener('click', function() {
+                goToPage(parseInt(this.dataset.page));
+                switchView('page');
+            });
+        });
+    }
+    
+    function updateGridSelection() {
+        if (!state.gridLoaded) return;
+        DOM.gridContainer.querySelectorAll('.grid-page').forEach(el => {
+            el.classList.toggle('active', parseInt(el.dataset.page) === state.currentPage);
+        });
+    }
+    
+    DOM.pageViewBtn.addEventListener('click', () => switchView('page'));
+    DOM.gridViewBtn.addEventListener('click', () => switchView('grid'));
+    
+    // =====================
+    // NAVIGATION
+    // =====================
+    function goToPage(page) {
+        page = Math.max(1, Math.min(CONFIG.totalPages, page));
+        state.currentPage = page;
+        DOM.currentPageImg.src = `/view/${CONFIG.flipbookId}/pages/page_${page}.jpg`;
+        DOM.currentPageNum.textContent = page;
+        DOM.pageSlider.value = page;
+        DOM.prevPageBtn.disabled = page === 1;
+        DOM.nextPageBtn.disabled = page === CONFIG.totalPages;
+        updateGridSelection();
+        renderHotspots();
+        refreshLinkPanel();
+    }
+    
+    DOM.prevPageBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
+    DOM.nextPageBtn.addEventListener('click', () => goToPage(state.currentPage + 1));
+    DOM.pageSlider.addEventListener('input', function() { goToPage(parseInt(this.value)); });
+    
+    // =====================
+    // ZOOM
+    // =====================
+    function setZoom(z) {
+        state.zoom = Math.max(0.5, Math.min(2, z));
+        DOM.currentPageImg.style.transform = `scale(${state.zoom})`;
+    }
+    
+    DOM.zoomInBtn.addEventListener('click', () => setZoom(state.zoom + 0.25));
+    DOM.zoomOutBtn.addEventListener('click', () => setZoom(state.zoom - 0.25));
+    
+    DOM.fullscreenBtn.addEventListener('click', () => {
+        const area = state.currentView === 'page' ? DOM.previewArea : DOM.gridArea;
+        if (!document.fullscreenElement) area.requestFullscreen();
+        else document.exitFullscreen();
+    });
+    
+    // =====================
+    // KEYBOARD
+    // =====================
+    document.addEventListener('keydown', function(e) {
+        // Ignore if in input
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+        
+        if (e.key === 'Escape') {
+            if (isVisible(DOM.drawingMode)) { stopDrawingMode(); return; }
+            if (isVisible(DOM.hotspotModal)) { closeModal(); return; }
+            if (isVisible(DOM.optionsPanel)) { closePanel(); return; }
+            return;
+        }
+        
+        // Other shortcuts only if no modal/drawing
+        if (isVisible(DOM.drawingMode) || isVisible(DOM.hotspotModal)) return;
+        
+        if (state.currentView === 'page') {
+            if (e.key === 'ArrowLeft') goToPage(state.currentPage - 1);
+            if (e.key === 'ArrowRight') goToPage(state.currentPage + 1);
+            if (e.key === '+' || e.key === '=') setZoom(state.zoom + 0.25);
+            if (e.key === '-') setZoom(state.zoom - 0.25);
+        }
+        if (e.key === 'g' || e.key === 'G') switchView(state.currentView === 'page' ? 'grid' : 'page');
+    });
+    
+    // =====================
+    // SAVE
+    // =====================
+    function saveFlipbook(data) {
+        DOM.saveStatus.textContent = 'Sauvegarde...';
+        DOM.saveStatus.className = 'save-status saving';
+        
+        API.updateFlipbook(data)
+            .then(res => {
+                if (res.success) {
+                    showStatus('Sauvegardé', 'saved');
+                    Object.assign(state.flipbookData, data);
+                } else {
+                    showStatus('Erreur', 'error');
+                }
+            })
+            .catch(() => showStatus('Erreur', 'error'));
+    }
+    
+    function debounceSave(data) {
+        clearTimeout(state.saveTimeout);
+        state.saveTimeout = setTimeout(() => saveFlipbook(data), 500);
+    }
+    
+    // =====================
+    // INIT
+    // =====================
+    goToPage(1);
+    loadHotspots();
+    DOM.previewContainer.style.background = state.flipbookData.backgroundColor || '#0f0f0f';
+    
+})();
+</script>
+{% endblock %}
